@@ -17,7 +17,7 @@
       }
 
       .panel {
-        max-width: 800px;
+        max-width: 900px;
         margin: 0 auto;
         background: white;
         border-radius: 12px;
@@ -56,23 +56,30 @@
       ol {
         margin: 8px 0 0;
       }
+
+      .step {
+        margin-bottom: 24px;
+      }
+
+      .block-wrap {
+        margin-bottom: 16px;
+      }
     </style>
   </head>
   <body>
     <main class="panel">
       <h1>사람 자리 & 추가업무 배치 프로그램</h1>
       <p>
-        버튼을 누르면 <strong>1단계(랜덤 섞기)</strong>,
-        <strong>2단계(4블록 자리 배치도)</strong>,
-        <strong>3단계(추가업무 배치)</strong>를 별도 창으로 표시합니다.
+        버튼을 누르면 1단계(랜덤 섞기), 2단계(4블록 자리 배치도), 3단계(추가업무 배치)를
+        페이지에서 바로 확인할 수 있습니다.
       </p>
       <button id="generateBtn" type="button">배치 생성하기</button>
-      <p class="hint">팝업이 차단되면 같은 페이지 아래 미리보기도 함께 보여줍니다.</p>
+      <p class="hint">팝업 없이 페이지 내부에 결과를 표시합니다.</p>
       <section class="preview" id="preview"></section>
     </main>
 
     <script>
-      const people = [
+      const seatingPeople = [
         "김시현",
         "육나영",
         "정애리",
@@ -89,11 +96,17 @@
         "김희준",
       ];
 
+      const extraTaskPeople = [...seatingPeople, "양만석"];
       const PREVIOUS_EXTRA_WORKERS = ["신해빈", "이건형", "정애리", "김충환"];
       const EXTRA_TASKS = ["아틀라시안", "프린터기", "얼굴인식", "사물함"];
       const BLOCK_COUNT = 4;
-      const GRID_ROWS = 2;
-      const GRID_COLS = 3;
+      const SEATS_PER_BLOCK = [4, 4, 3, 3];
+      const BLOCK_LAYOUTS = [
+        { rows: 3, cols: 2 },
+        { rows: 3, cols: 2 },
+        { rows: 3, cols: 2 },
+        { rows: 2, cols: 3 },
+      ];
 
       function shuffle(array) {
         const result = [...array];
@@ -104,32 +117,27 @@
         return result;
       }
 
-      function buildBlockSizes() {
-        const blockSizes = Array(BLOCK_COUNT).fill(3);
-        const indices = shuffle([0, 1, 2, 3]);
-        blockSizes[indices[0]] = 4;
-        blockSizes[indices[1]] = 4;
-        return blockSizes;
-      }
-
       function buildBlocks(shuffled) {
-        const blockSizes = buildBlockSizes();
+        const randomizedCounts = shuffle(SEATS_PER_BLOCK);
         const blocks = [];
         let cursor = 0;
 
         for (let blockIndex = 0; blockIndex < BLOCK_COUNT; blockIndex += 1) {
-          const assignedCount = blockSizes[blockIndex];
+          const layout = BLOCK_LAYOUTS[blockIndex];
+          const assignedCount = randomizedCounts[blockIndex];
           const assigned = shuffled.slice(cursor, cursor + assignedCount);
           cursor += assignedCount;
 
           const cells = shuffle([
             ...assigned,
-            ...Array(GRID_ROWS * GRID_COLS - assigned.length).fill("빈자리"),
+            ...Array(layout.rows * layout.cols - assigned.length).fill("빈자리"),
           ]);
 
           blocks.push({
             name: `${blockIndex + 1}블록`,
             assignedCount,
+            rows: layout.rows,
+            cols: layout.cols,
             cells,
           });
         }
@@ -156,30 +164,32 @@
 
       function buildStep1Html(shuffled) {
         return `
-          <h2>1단계: 랜덤 섞인 순서</h2>
-          <p style="margin: 0 0 6px; color: #334155;">총 ${shuffled.length}명</p>
-          <ol>${shuffled.map((name) => `<li>${name}</li>`).join("")}</ol>
+          <section class="step">
+            <h2>1단계: 랜덤 섞인 순서 (자리 배치 14명 기준)</h2>
+            <p style="margin: 0 0 6px; color: #334155;">총 ${shuffled.length}명</p>
+            <ol>${shuffled.map((name) => `<li>${name}</li>`).join("")}</ol>
+          </section>
         `;
       }
 
       function blockToTable(block) {
         const rows = [];
-        for (let row = 0; row < GRID_ROWS; row += 1) {
+        for (let row = 0; row < block.rows; row += 1) {
           const cols = [];
-          for (let col = 0; col < GRID_COLS; col += 1) {
-            const value = block.cells[row * GRID_COLS + col];
+          for (let col = 0; col < block.cols; col += 1) {
+            const value = block.cells[row * block.cols + col];
             cols.push(`<td>${value}</td>`);
           }
           rows.push(`<tr>${cols.join("")}</tr>`);
         }
 
         return `
-          <article style="margin-bottom: 16px;">
+          <article class="block-wrap">
             <h3 style="margin: 0 0 8px;">${block.name}</h3>
-            <table border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; text-align: center; min-width: 330px;">
+            <table border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; text-align: center; min-width: 240px;">
               ${rows.join("")}
             </table>
-            <p style="margin: 6px 0 0; color: #334155; font-size: 13px;">※ ${block.assignedCount}명 배치, 나머지는 빈자리</p>
+            <p style="margin: 6px 0 0; color: #334155; font-size: 13px;">※ ${block.cols}열 x ${block.rows}행 / ${block.assignedCount}명 배치</p>
           </article>
         `;
       }
@@ -188,52 +198,35 @@
         const totalAssigned = blocks.reduce((sum, block) => sum + block.assignedCount, 0);
 
         return `
-          <h2>2단계: 전체 자리 배치도 (4블록)</h2>
-          <p style="margin: 0 0 12px; color: #334155;">블록별 3명 또는 4명 배치 / 전체 ${totalAssigned}명 배치 완료</p>
-          ${blocks.map(blockToTable).join("")}
+          <section class="step">
+            <h2>2단계: 전체 자리 배치도 (4블록)</h2>
+            <p style="margin: 0 0 12px; color: #334155;">1~3블록: 2열 3행 / 4블록: 3열 2행, 전체 ${totalAssigned}명 배치 완료</p>
+            ${blocks.map(blockToTable).join("")}
+          </section>
         `;
       }
 
-      function buildStep3Html(assignments) {
+      function buildStep3Html(shuffledExtraPeople, assignments) {
         const taskRow = assignments.map(({ task }) => `<td style="font-weight: 700;">${task}</td>`).join("");
         const workerRow = assignments.map(({ worker }) => `<td>${worker}</td>`).join("");
 
         return `
-          <h2>3단계: 추가업무 배치 (4열 2행)</h2>
-          <table border="1" cellspacing="0" cellpadding="10" style="border-collapse: collapse; text-align: center; min-width: 520px;">
-            <tr>${taskRow}</tr>
-            <tr>${workerRow}</tr>
-          </table>
-          <p style="margin: 8px 0 0; color: #334155; font-size: 13px;">※ 지난 회차 추가업무 참여자 제외: ${PREVIOUS_EXTRA_WORKERS.join(", ")}</p>
+          <section class="step">
+            <h2>3단계: 추가업무 배치 (15명 기준: 기존 14명 + 양만석)</h2>
+            <p style="margin: 0 0 6px; color: #334155;">추가업무 대상 랜덤 순서(총 ${shuffledExtraPeople.length}명)</p>
+            <ol>${shuffledExtraPeople.map((name) => `<li>${name}</li>`).join("")}</ol>
+            <table border="1" cellspacing="0" cellpadding="10" style="border-collapse: collapse; text-align: center; min-width: 520px; margin-top: 10px;">
+              <tr>${taskRow}</tr>
+              <tr>${workerRow}</tr>
+            </table>
+            <p style="margin: 8px 0 0; color: #334155; font-size: 13px;">※ 지난 회차 추가업무 참여자 제외: ${PREVIOUS_EXTRA_WORKERS.join(", ")}</p>
+          </section>
         `;
-      }
-
-      function openWindow(title, innerHtml) {
-        const popup = window.open("about:blank", "_blank", "width=700,height=750");
-        if (!popup) {
-          return false;
-        }
-
-        popup.document.write(`
-          <!doctype html>
-          <html lang="ko">
-            <head>
-              <meta charset="UTF-8" />
-              <title>${title}</title>
-            </head>
-            <body style="font-family: 'Noto Sans KR', system-ui, sans-serif; padding: 20px; line-height: 1.6;">
-              ${innerHtml}
-            </body>
-          </html>
-        `);
-        popup.document.close();
-        return true;
       }
 
       function renderPreview(step1Html, step2Html, step3Html) {
         const preview = document.querySelector("#preview");
         preview.innerHTML = `
-          <h2>페이지 내 미리보기</h2>
           ${step1Html}
           <hr />
           ${step2Html}
@@ -243,21 +236,15 @@
       }
 
       document.querySelector("#generateBtn").addEventListener("click", () => {
-        const shuffled = shuffle(people);
-        const blocks = buildBlocks(shuffled);
-        const extraAssignments = buildExtraAssignments(shuffled);
+        const shuffledSeatingPeople = shuffle(seatingPeople);
+        const blocks = buildBlocks(shuffledSeatingPeople);
 
-        const step1Html = buildStep1Html(shuffled);
+        const shuffledExtraPeople = shuffle(extraTaskPeople);
+        const extraAssignments = buildExtraAssignments(shuffledExtraPeople);
+
+        const step1Html = buildStep1Html(shuffledSeatingPeople);
         const step2Html = buildStep2Html(blocks);
-        const step3Html = buildStep3Html(extraAssignments);
-
-        const openedStep1 = openWindow("1단계 - 랜덤 순서", step1Html);
-        const openedStep2 = openWindow("2단계 - 자리 배치도", step2Html);
-        const openedStep3 = openWindow("3단계 - 추가업무 배치", step3Html);
-
-        if (!openedStep1 || !openedStep2 || !openedStep3) {
-          alert("팝업이 차단되어 페이지 내 미리보기를 표시합니다.");
-        }
+        const step3Html = buildStep3Html(shuffledExtraPeople, extraAssignments);
 
         renderPreview(step1Html, step2Html, step3Html);
       });
