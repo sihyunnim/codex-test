@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>자리/추가업무 배치기</title>
+    <style>
+      :root {
+        font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+        color: #1f2937;
+        background: #f8fafc;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+      }
+
+      .panel {
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      button {
+        border: none;
+        border-radius: 8px;
+        padding: 10px 16px;
+        font-size: 15px;
+        background: #2563eb;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #1d4ed8;
+      }
+
+      .hint {
+        font-size: 14px;
+        color: #475569;
+      }
+
+      .preview {
+        margin-top: 16px;
+        font-size: 14px;
+      }
+
+      ol {
+        margin: 8px 0 0;
+      }
+
+      .step {
+        margin-bottom: 24px;
+      }
+
+      .block-wrap {
+        margin-bottom: 16px;
+      }
+
+      .seat-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .seat-layout-top {
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .seat-layout-bottom {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(210px, 1fr));
+        gap: 14px;
+      }
+
+      @media (max-width: 860px) {
+        .seat-layout-bottom {
+          grid-template-columns: 1fr;
+        }
+
+        .seat-layout-top {
+          justify-content: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel">
+      <h1>사람 자리 & 추가업무 배치 프로그램</h1>
+      <p>
+        버튼을 누르면 1단계(랜덤 섞기), 2단계(4블록 자리 배치도), 3단계(추가업무 배치)를
+        페이지에서 바로 확인할 수 있습니다.
+      </p>
+      <button id="generateBtn" type="button">배치 생성하기</button>
+      <p class="hint">팝업 없이 페이지 내부에 결과를 표시합니다.</p>
+      <section class="preview" id="preview"></section>
+    </main>
+
+    <script>
+      const seatingPeople = [
+        "김시현",
+        "육나영",
+        "정애리",
+        "변선희",
+        "이경민",
+        "유혜진",
+        "공승환",
+        "곽기은",
+        "배병준",
+        "서현지",
+        "신해빈",
+        "이건형",
+        "하승아",
+        "김희준",
+      ];
+
+      const extraTaskPeople = [...seatingPeople, "양만석"];
+      const PREVIOUS_EXTRA_WORKERS = ["신해빈", "이건형", "정애리", "김충환"];
+      const EXTRA_TASKS = ["아틀라시안", "프린터기", "얼굴인식", "사물함"];
+      const BLOCK_COUNT = 4;
+      const SEATS_PER_BLOCK = [4, 4, 3, 3];
+      const BLOCK_LAYOUTS = [
+        { rows: 3, cols: 2 },
+        { rows: 3, cols: 2 },
+        { rows: 3, cols: 2 },
+        { rows: 2, cols: 3 },
+      ];
+
+      function shuffle(array) {
+        const result = [...array];
+        for (let i = result.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [result[i], result[j]] = [result[j], result[i]];
+        }
+        return result;
+      }
+
+      function buildBlocks(shuffled) {
+        const randomizedCounts = shuffle(SEATS_PER_BLOCK);
+        const blocks = [];
+        let cursor = 0;
+
+        for (let blockIndex = 0; blockIndex < BLOCK_COUNT; blockIndex += 1) {
+          const layout = BLOCK_LAYOUTS[blockIndex];
+          const assignedCount = randomizedCounts[blockIndex];
+          const assigned = shuffled.slice(cursor, cursor + assignedCount);
+          cursor += assignedCount;
+
+          const cells = shuffle([
+            ...assigned,
+            ...Array(layout.rows * layout.cols - assigned.length).fill("빈자리"),
+          ]);
+
+          blocks.push({
+            name: `${blockIndex + 1}블록`,
+            assignedCount,
+            rows: layout.rows,
+            cols: layout.cols,
+            cells,
+          });
+        }
+
+        return blocks;
+      }
+
+      function buildExtraAssignments(shuffledPeople) {
+        const excludedSet = new Set(PREVIOUS_EXTRA_WORKERS);
+        const eligiblePeople = shuffledPeople.filter((person) => !excludedSet.has(person));
+
+        if (eligiblePeople.length < EXTRA_TASKS.length) {
+          throw new Error("추가업무 선발 가능한 인원이 부족합니다.");
+        }
+
+        const selectedWorkers = shuffle(eligiblePeople).slice(0, EXTRA_TASKS.length);
+        const shuffledTasks = shuffle(EXTRA_TASKS);
+
+        return shuffledTasks.map((task, index) => ({
+          task,
+          worker: selectedWorkers[index],
+        }));
+      }
+
+      function buildStep1Html(shuffled) {
+        return `
+          <section class="step">
+            <h2>1단계: 랜덤 섞인 순서 (자리 배치 14명 기준)</h2>
+            <p style="margin: 0 0 6px; color: #334155;">총 ${shuffled.length}명</p>
+            <ol>${shuffled.map((name) => `<li>${name}</li>`).join("")}</ol>
+          </section>
+        `;
+      }
+
+      function blockToTable(block) {
+        const rows = [];
+        for (let row = 0; row < block.rows; row += 1) {
+          const cols = [];
+          for (let col = 0; col < block.cols; col += 1) {
+            const value = block.cells[row * block.cols + col];
+            cols.push(`<td>${value}</td>`);
+          }
+          rows.push(`<tr>${cols.join("")}</tr>`);
+        }
+
+        return `
+          <article class="block-wrap">
+            <h3 style="margin: 0 0 8px;">${block.name}</h3>
+            <table border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; text-align: center; min-width: 240px;">
+              ${rows.join("")}
+            </table>
+            <p style="margin: 6px 0 0; color: #334155; font-size: 13px;">※ ${block.cols}열 x ${block.rows}행 / ${block.assignedCount}명 배치</p>
+          </article>
+        `;
+      }
+
+      function buildStep2Html(blocks) {
+        const totalAssigned = blocks.reduce((sum, block) => sum + block.assignedCount, 0);
+
+        return `
+          <section class="step">
+            <h2>2단계: 전체 자리 배치도 (4블록)</h2>
+            <p style="margin: 0 0 12px; color: #334155;">요청 레이아웃: 위쪽 오른편 4블록(3열 x 2행), 아래쪽 1~3블록(각 2열 x 3행) / 전체 ${totalAssigned}명 배치 완료</p>
+            <div class="seat-layout">
+              <div class="seat-layout-top">
+                ${blockToTable(blocks[3])}
+              </div>
+              <div class="seat-layout-bottom">
+                ${blockToTable(blocks[0])}
+                ${blockToTable(blocks[1])}
+                ${blockToTable(blocks[2])}
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function buildStep3Html(shuffledExtraPeople, assignments) {
+        const taskRow = assignments.map(({ task }) => `<td style="font-weight: 700;">${task}</td>`).join("");
+        const workerRow = assignments.map(({ worker }) => `<td>${worker}</td>`).join("");
+
+        return `
+          <section class="step">
+            <h2>3단계: 추가업무 배치 (15명 기준: 기존 14명 + 양만석)</h2>
+            <p style="margin: 0 0 6px; color: #334155;">추가업무 대상 랜덤 순서(총 ${shuffledExtraPeople.length}명)</p>
+            <ol>${shuffledExtraPeople.map((name) => `<li>${name}</li>`).join("")}</ol>
+            <table border="1" cellspacing="0" cellpadding="10" style="border-collapse: collapse; text-align: center; min-width: 520px; margin-top: 10px;">
+              <tr>${taskRow}</tr>
+              <tr>${workerRow}</tr>
+            </table>
+            <p style="margin: 8px 0 0; color: #334155; font-size: 13px;">※ 지난 회차 추가업무 참여자 제외: ${PREVIOUS_EXTRA_WORKERS.join(", ")}</p>
+          </section>
+        `;
+      }
+
+      function renderPreview(step1Html, step2Html, step3Html) {
+        const preview = document.querySelector("#preview");
+        preview.innerHTML = `
+          ${step1Html}
+          <hr />
+          ${step2Html}
+          <hr />
+          ${step3Html}
+        `;
+      }
+
+      document.querySelector("#generateBtn").addEventListener("click", () => {
+        const shuffledSeatingPeople = shuffle(seatingPeople);
+        const blocks = buildBlocks(shuffledSeatingPeople);
+
+        const shuffledExtraPeople = shuffle(extraTaskPeople);
+        const extraAssignments = buildExtraAssignments(shuffledExtraPeople);
+
+        const step1Html = buildStep1Html(shuffledSeatingPeople);
+        const step2Html = buildStep2Html(blocks);
+        const step3Html = buildStep3Html(shuffledExtraPeople, extraAssignments);
+
+        renderPreview(step1Html, step2Html, step3Html);
+      });
+    </script>
+  </body>
+</html>
