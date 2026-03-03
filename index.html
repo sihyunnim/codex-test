@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>4블록 자리 배치기</title>
+    <title>자리/추가업무 배치기</title>
     <style>
       :root {
         font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif;
@@ -60,10 +60,11 @@
   </head>
   <body>
     <main class="panel">
-      <h1>사람 자리 배치 프로그램</h1>
+      <h1>사람 자리 & 추가업무 배치 프로그램</h1>
       <p>
-        버튼을 누르면 <strong>1단계(랜덤 섞기)</strong>와
-        <strong>2단계(4블록 자리 배치도)</strong>를 별도 창으로 표시합니다.
+        버튼을 누르면 <strong>1단계(랜덤 섞기)</strong>,
+        <strong>2단계(4블록 자리 배치도)</strong>,
+        <strong>3단계(추가업무 배치)</strong>를 별도 창으로 표시합니다.
       </p>
       <button id="generateBtn" type="button">배치 생성하기</button>
       <p class="hint">팝업이 차단되면 같은 페이지 아래 미리보기도 함께 보여줍니다.</p>
@@ -88,6 +89,8 @@
         "김희준",
       ];
 
+      const PREVIOUS_EXTRA_WORKERS = ["신해빈", "이건형", "정애리", "김충환"];
+      const EXTRA_TASKS = ["아틀라시안", "프린터기", "얼굴인식", "사물함"];
       const BLOCK_COUNT = 4;
       const GRID_ROWS = 2;
       const GRID_COLS = 3;
@@ -134,6 +137,23 @@
         return blocks;
       }
 
+      function buildExtraAssignments(shuffledPeople) {
+        const excludedSet = new Set(PREVIOUS_EXTRA_WORKERS);
+        const eligiblePeople = shuffledPeople.filter((person) => !excludedSet.has(person));
+
+        if (eligiblePeople.length < EXTRA_TASKS.length) {
+          throw new Error("추가업무 선발 가능한 인원이 부족합니다.");
+        }
+
+        const selectedWorkers = shuffle(eligiblePeople).slice(0, EXTRA_TASKS.length);
+        const shuffledTasks = shuffle(EXTRA_TASKS);
+
+        return shuffledTasks.map((task, index) => ({
+          task,
+          worker: selectedWorkers[index],
+        }));
+      }
+
       function buildStep1Html(shuffled) {
         return `
           <h2>1단계: 랜덤 섞인 순서</h2>
@@ -174,6 +194,20 @@
         `;
       }
 
+      function buildStep3Html(assignments) {
+        const taskRow = assignments.map(({ task }) => `<td style="font-weight: 700;">${task}</td>`).join("");
+        const workerRow = assignments.map(({ worker }) => `<td>${worker}</td>`).join("");
+
+        return `
+          <h2>3단계: 추가업무 배치 (4열 2행)</h2>
+          <table border="1" cellspacing="0" cellpadding="10" style="border-collapse: collapse; text-align: center; min-width: 520px;">
+            <tr>${taskRow}</tr>
+            <tr>${workerRow}</tr>
+          </table>
+          <p style="margin: 8px 0 0; color: #334155; font-size: 13px;">※ 지난 회차 추가업무 참여자 제외: ${PREVIOUS_EXTRA_WORKERS.join(", ")}</p>
+        `;
+      }
+
       function openWindow(title, innerHtml) {
         const popup = window.open("about:blank", "_blank", "width=700,height=750");
         if (!popup) {
@@ -196,31 +230,36 @@
         return true;
       }
 
-      function renderPreview(step1Html, step2Html) {
+      function renderPreview(step1Html, step2Html, step3Html) {
         const preview = document.querySelector("#preview");
         preview.innerHTML = `
           <h2>페이지 내 미리보기</h2>
           ${step1Html}
           <hr />
           ${step2Html}
+          <hr />
+          ${step3Html}
         `;
       }
 
       document.querySelector("#generateBtn").addEventListener("click", () => {
         const shuffled = shuffle(people);
         const blocks = buildBlocks(shuffled);
+        const extraAssignments = buildExtraAssignments(shuffled);
 
         const step1Html = buildStep1Html(shuffled);
         const step2Html = buildStep2Html(blocks);
+        const step3Html = buildStep3Html(extraAssignments);
 
         const openedStep1 = openWindow("1단계 - 랜덤 순서", step1Html);
         const openedStep2 = openWindow("2단계 - 자리 배치도", step2Html);
+        const openedStep3 = openWindow("3단계 - 추가업무 배치", step3Html);
 
-        if (!openedStep1 || !openedStep2) {
+        if (!openedStep1 || !openedStep2 || !openedStep3) {
           alert("팝업이 차단되어 페이지 내 미리보기를 표시합니다.");
         }
 
-        renderPreview(step1Html, step2Html);
+        renderPreview(step1Html, step2Html, step3Html);
       });
     </script>
   </body>
