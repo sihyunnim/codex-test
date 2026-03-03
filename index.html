@@ -64,6 +64,33 @@
       .block-wrap {
         margin-bottom: 16px;
       }
+
+      .seat-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .seat-layout-top {
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .seat-layout-bottom {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(210px, 1fr));
+        gap: 14px;
+      }
+
+      @media (max-width: 860px) {
+        .seat-layout-bottom {
+          grid-template-columns: 1fr;
+        }
+
+        .seat-layout-top {
+          justify-content: flex-start;
+        }
+      }
     </style>
   </head>
   <body>
@@ -200,8 +227,17 @@
         return `
           <section class="step">
             <h2>2단계: 전체 자리 배치도 (4블록)</h2>
-            <p style="margin: 0 0 12px; color: #334155;">1~3블록: 2열 3행 / 4블록: 3열 2행, 전체 ${totalAssigned}명 배치 완료</p>
-            ${blocks.map(blockToTable).join("")}
+            <p style="margin: 0 0 12px; color: #334155;">요청 레이아웃: 위쪽 오른편 4블록(3열 x 2행), 아래쪽 1~3블록(각 2열 x 3행) / 전체 ${totalAssigned}명 배치 완료</p>
+            <div class="seat-layout">
+              <div class="seat-layout-top">
+                ${blockToTable(blocks[3])}
+              </div>
+              <div class="seat-layout-bottom">
+                ${blockToTable(blocks[0])}
+                ${blockToTable(blocks[1])}
+                ${blockToTable(blocks[2])}
+              </div>
+            </div>
           </section>
         `;
       }
